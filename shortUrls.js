@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Url = require('./Url');
-const shortid = require('shortid');
 const validUrl = require('valid-url');
-const geoip = require('geoip-lite');
+const shortid = require('shortid');
 
 const isValidShortCode = (code) => /^[a-zA-Z0-9_-]{4,20}$/.test(code);
 
@@ -26,12 +25,10 @@ router.post('/', async (req, res) => {
         if (!url || !validUrl.isWebUri(url)) {
             return res.status(400).json({ error: 'Invalid URL format' });
         }
-        if (isNaN(validity)) {
-            return res.status(400).json({ error: 'The validity you have entered is not a number' });
+        if (isNaN(validity) || validity < 0) {
+            return res.status(400).json({ error: 'Validity is not correct'});
         }
-        if (validity <= 0) {
-            return res.status(400).json({ error: 'The validity you have entered is negative' });
-        }
+    
 
         let shortCode;
         if (shortcode) {
@@ -60,7 +57,6 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Redirect route
 router.get('/:shortCode', async (req, res) => {
     try {
         const shortCode = req.params.shortCode;
@@ -69,15 +65,7 @@ router.get('/:shortCode', async (req, res) => {
         if (!url) return res.status(404).json({ error: 'Short URL not found' });
         if (new Date() > url.expiresAt) return res.status(410).json({ error: 'Short URL has expired' });
 
-        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-        const geo = geoip.lookup(ip) || {};
-
-        url.clicks.push({
-            ipAddress: ip,
-            referrer: req.get('Referer') || 'direct',
-            country: geo.country || 'Unknown',
-            region: geo.region || 'Unknown'
-        });
+        const ip = req.headers['x-forwarded-for'];
         await url.save();
 
         res.redirect(302, url.originalUrl);
@@ -85,8 +73,6 @@ router.get('/:shortCode', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
-
-// Stats route
 router.get('/stats/:shortCode', async (req, res) => {
     try {
         const shortCode = req.params.shortCode;

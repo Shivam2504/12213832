@@ -17,6 +17,25 @@ async function createUniqueCode() {
     throw new Error('Failed to generate unique code');
 }
 
+router.get('/:code', async (req, res) => {
+    try {
+        const url = await Url.findOne({ shortCode: req.params.code });
+        
+        if (!url) return res.status(404).json({ error: 'URL not found' });
+        if (new Date() > url.expiresAt) return res.status(410).json({ error: 'Link expired' });
+        url.clicks.push({
+            ipAddress: req.ip,
+            referrer: req.get('Referer') || 'direct'
+        });
+        
+        await url.save();
+        res.redirect(url.originalUrl);
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 router.post('/', async (req, res) => {
     try {
         const { url, validity = 30, shortcode } = req.body;
@@ -62,24 +81,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.get('/:code', async (req, res) => {
-    try {
-        const url = await Url.findOne({ shortCode: req.params.code });
-        
-        if (!url) return res.status(404).json({ error: 'URL not found' });
-        if (new Date() > url.expiresAt) return res.status(410).json({ error: 'Link expired' });
-        url.clicks.push({
-            ipAddress: req.ip,
-            referrer: req.get('Referer') || 'direct'
-        });
-        
-        await url.save();
-        res.redirect(url.originalUrl);
-        
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
+
 
 router.get('/shorturls/:code', async (req, res) => {
     try {
